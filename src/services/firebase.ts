@@ -13,7 +13,8 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
-  writeBatch
+  writeBatch,
+  onSnapshot
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -169,6 +170,25 @@ export const firestoreSync = {
     } catch (err) {
       console.warn(`Error al cargar de Firestore [${coleccion}]:`, err);
       return [];
+    }
+  },
+
+  // Suscribirse a cambios en tiempo real en una colección (multi-dispositivo Android & Windows)
+  suscribirColeccion<T>(coleccion: string, callback: (datos: T[]) => void): () => void {
+    try {
+      const colRef = collection(db, coleccion);
+      const unsubscribe = onSnapshot(colRef, (snapshot) => {
+        if (!snapshot.empty) {
+          const docs = snapshot.docs.map(d => d.data() as T);
+          callback(docs);
+        }
+      }, (err) => {
+        console.warn(`Error en listener de Firestore [${coleccion}]:`, err);
+      });
+      return unsubscribe;
+    } catch (err) {
+      console.warn(`Error al suscribir Firestore [${coleccion}]:`, err);
+      return () => {};
     }
   },
 

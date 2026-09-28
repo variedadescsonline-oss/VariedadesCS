@@ -68,6 +68,15 @@ export const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Indicador de Nube Activa */}
+        <div 
+          className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold"
+          title="Sincronizado en tiempo real con Firestore en la nube (Android & Windows)"
+        >
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="hidden md:inline">Nube Sincronizada</span>
+        </div>
+
         {/* Botón Prominente: Tasa de Cambio (Bancos y Comercial) */}
         <button
           onClick={onAbrirTipoCambio}

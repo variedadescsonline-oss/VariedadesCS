@@ -89,60 +89,85 @@ export default function App() {
     });
   };
 
-  // Business entities persisted in localStorage (Limpias y vacías por defecto)
-  const inicializarVacio = () => {
-    const yaReseteado = localStorage.getItem('cs_reset_empty_v1');
-    if (!yaReseteado) {
-      localStorage.removeItem('cs_productos');
-      localStorage.removeItem('cs_clientes');
-      localStorage.removeItem('cs_proveedores');
-      localStorage.removeItem('cs_ventas');
-      localStorage.removeItem('cs_creditos');
-      localStorage.removeItem('cs_abonos');
-      localStorage.removeItem('cs_caja');
-      localStorage.setItem('cs_reset_empty_v1', 'true');
-    }
-  };
-  inicializarVacio();
-
+  // Estados principales de la aplicación (con respaldo inicial para nuevos dispositivos Android y Windows)
   const [productos, setProductos] = useState<Producto[]>(() => {
-    const saved = localStorage.getItem('cs_productos');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_productos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return PRODUCTOS_INICIALES;
   });
 
   const [clientes, setClientes] = useState<Cliente[]>(() => {
-    const saved = localStorage.getItem('cs_clientes');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_clientes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return CLIENTES_INICIALES;
   });
 
   const [proveedores, setProveedores] = useState<Proveedor[]>(() => {
-    const saved = localStorage.getItem('cs_proveedores');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_proveedores');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return PROVEEDORES_INICIALES;
   });
 
   const [ventas, setVentas] = useState<VentaRegistro[]>(() => {
-    const saved = localStorage.getItem('cs_ventas');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_ventas');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [creditos, setCreditos] = useState<Credito[]>(() => {
-    const saved = localStorage.getItem('cs_creditos');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_creditos');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [abonos, setAbonos] = useState<Abono[]>(() => {
-    const saved = localStorage.getItem('cs_abonos');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_abonos');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   const [caja, setCaja] = useState<MovimientoCaja[]>(() => {
-    const saved = localStorage.getItem('cs_caja');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_caja');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return CAJA_INICIAL;
   });
 
   const [compras, setCompras] = useState<CompraRegistro[]>(() => {
-    const saved = localStorage.getItem('cs_compras');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('cs_compras');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   // Estados de Tipo de Cambio Bancario & Comercial y Moneda
@@ -492,7 +517,7 @@ export default function App() {
     setHistorialTC(prev => [nuevoReg, ...prev]);
   };
 
-  // Carga inicial y sincronización con Firebase Firestore en la nube
+  // Carga inicial y sincronización en tiempo real con Firebase Firestore en la nube (Android & Windows)
   useEffect(() => {
     let cancelado = false;
     async function sincronizarDesdeNube() {
@@ -519,7 +544,17 @@ export default function App() {
 
         if (cancelado) return;
 
-        if (prodsRemotos && prodsRemotos.length > 0) setProductos(prodsRemotos);
+        if (prodsRemotos && prodsRemotos.length > 0) {
+          setProductos(prodsRemotos);
+        } else {
+          // Si la base en la nube estuviera vacía, sembrar catálogo de Variedades CS
+          firestoreSync.guardarLote('productos', PRODUCTOS_INICIALES.map(p => ({ id: p.codigo, data: p })));
+          firestoreSync.guardarLote('clientes', CLIENTES_INICIALES.map(c => ({ id: c.id, data: c })));
+          firestoreSync.guardarLote('proveedores', PROVEEDORES_INICIALES.map(pr => ({ id: pr.id, data: pr })));
+          firestoreSync.guardarLote('caja', CAJA_INICIAL.map(cj => ({ id: cj.id, data: cj })));
+          setProductos(PRODUCTOS_INICIALES);
+        }
+
         if (clisRemotos && clisRemotos.length > 0) setClientes(clisRemotos);
         if (provsRemotos && provsRemotos.length > 0) setProveedores(provsRemotos);
         if (ventasRemotas && ventasRemotas.length > 0) setVentas(ventasRemotas);
@@ -533,7 +568,43 @@ export default function App() {
     }
 
     sincronizarDesdeNube();
-    return () => { cancelado = true; };
+
+    // Suscripciones en tiempo real para mantener Android y Windows 100% sincronizados
+    const unsubProds = firestoreSync.suscribirColeccion<Producto>('productos', (datos) => {
+      if (datos && datos.length > 0) setProductos(datos);
+    });
+    const unsubClis = firestoreSync.suscribirColeccion<Cliente>('clientes', (datos) => {
+      if (datos && datos.length > 0) setClientes(datos);
+    });
+    const unsubProvs = firestoreSync.suscribirColeccion<Proveedor>('proveedores', (datos) => {
+      if (datos && datos.length > 0) setProveedores(datos);
+    });
+    const unsubVentas = firestoreSync.suscribirColeccion<VentaRegistro>('ventas', (datos) => {
+      if (datos && datos.length > 0) {
+        datos.sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+        setVentas(datos);
+      }
+    });
+    const unsubCreditos = firestoreSync.suscribirColeccion<Credito>('creditos', (datos) => {
+      if (datos && datos.length > 0) setCreditos(datos);
+    });
+    const unsubAbonos = firestoreSync.suscribirColeccion<Abono>('abonos', (datos) => {
+      if (datos && datos.length > 0) setAbonos(datos);
+    });
+    const unsubCaja = firestoreSync.suscribirColeccion<MovimientoCaja>('caja', (datos) => {
+      if (datos && datos.length > 0) setCaja(datos);
+    });
+
+    return () => { 
+      cancelado = true;
+      unsubProds();
+      unsubClis();
+      unsubProvs();
+      unsubVentas();
+      unsubCreditos();
+      unsubAbonos();
+      unsubCaja();
+    };
   }, []);
 
   // Saldo actual de caja
